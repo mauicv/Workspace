@@ -1,0 +1,6 @@
+step,event,ep_return,ep_len,eval_return,critic_loss,actor_loss,q_loss,pullback_loss,tau_eff,pullback_lambda,normalized_adv,reward_running_mean,reward_running_std,actor_slow_dist
+1000,episode,30.2062,1000,,nan,nan,nan,nan,0.0,0.0,0.0,30.2062,1.0,0.0
+2000,episode,30.497,1000,,nan,nan,nan,nan,0.0,0.0,0.2828,30.2208,0.9768,0.0
+3000,episode,28.5817,1000,,nan,nan,nan,nan,0.0,0.772395,-1.5262,30.1388,1.0202,0.0
+4000,episode,33.9873,1000,,nan,nan,nan,nan,0.049068,0.0,2.7802,30.3312,1.315,0.0
+5000,episode,34.7317,1000,,0.049803,-0.218499,-0.218499,0.0,0.048636,0.0,2.5871,30.5513,1.6159,0.113927

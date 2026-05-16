@@ -1,0 +1,6 @@
+step,event,ep_return,ep_len,eval_return,critic_loss,actor_loss
+1000,episode,30.2062,1000,,nan,nan
+2000,episode,30.497,1000,,nan,nan
+3000,episode,28.5817,1000,,nan,nan
+4000,episode,33.9873,1000,,nan,nan
+5000,episode,34.7317,1000,,0.028399,-0.648047

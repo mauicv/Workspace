@@ -1,3 +1,4 @@
+import csv
 import os
 import random
 from collections import deque
@@ -135,6 +136,25 @@ def obs_dim_from_spec(spec):
     return sum(max(1, int(np.prod(v.shape))) for v in spec.values())
 
 
+# ── CSV Logger ────────────────────────────────────────────────────────────────
+
+class CSVLogger:
+    def __init__(self, path, fieldnames):
+        self.fieldnames = fieldnames
+        self.file = open(path, "w", newline="")
+        self.writer = csv.DictWriter(self.file, fieldnames=fieldnames)
+        self.writer.writeheader()
+
+    def write(self, **kwargs):
+        row = {k: "" for k in self.fieldnames}
+        row.update(kwargs)
+        self.writer.writerow(row)
+        self.file.flush()
+
+    def close(self):
+        self.file.close()
+
+
 # ── Main training loop ────────────────────────────────────────────────────────
 
 def train(
@@ -144,6 +164,7 @@ def train(
     eval_every=10_000,
     eval_episodes=5,
     seed=42,
+    csv_path="ddpg_walker.csv",
 ):
     random.seed(seed)
     np.random.seed(seed)
@@ -161,12 +182,15 @@ def train(
     buffer = ReplayBuffer()
     noise = OUNoise(act_dim)
 
+    logger = CSVLogger(csv_path, [
+        "step", "event", "ep_return", "ep_len", "eval_return", "critic_loss", "actor_loss",
+    ])
+
     def evaluate():
         returns = []
         for _ in range(eval_episodes):
             ts = eval_env.reset()
             ep_ret = 0.0
-            noise.reset()
             while not ts.last():
                 obs = flatten_obs(ts)
                 act = agent.select_action(obs)
@@ -179,11 +203,10 @@ def train(
     noise.reset()
     ep_ret, ep_len = 0.0, 0
     step = 0
+    ep_losses = []
 
-    print(f"{'Step':>8}  {'EpReturn':>10}  {'EvalReturn':>12}  {'CriticLoss':>12}  {'ActorLoss':>12}")
-    print("-" * 60)
-
-    c_loss_log, a_loss_log = [], []
+    print(f"{'Step':>8}  {'EvalReturn':>12}  {'CriticLoss':>12}  {'ActorLoss':>12}")
+    print("-" * 50)
 
     while step < total_steps:
         obs = flatten_obs(ts)
@@ -205,24 +228,34 @@ def train(
         ep_len += 1
         step += 1
 
+        if len(buffer) >= batch_size and step >= start_steps:
+            c_loss, a_loss = agent.update(buffer, batch_size)
+            ep_losses.append((c_loss, a_loss))
+
         if next_ts.last():
+            avg_c = np.mean([l[0] for l in ep_losses]) if ep_losses else float("nan")
+            avg_a = np.mean([l[1] for l in ep_losses]) if ep_losses else float("nan")
+            logger.write(
+                step=step, event="episode",
+                ep_return=round(ep_ret, 4), ep_len=ep_len,
+                critic_loss=round(avg_c, 6),
+                actor_loss=round(avg_a, 6),
+            )
             ts = env.reset()
             noise.reset()
             ep_ret, ep_len = 0.0, 0
+            ep_losses = []
         else:
             ts = next_ts
 
-        if len(buffer) >= batch_size and step >= start_steps:
-            c_loss, a_loss = agent.update(buffer, batch_size)
-            c_loss_log.append(c_loss)
-            a_loss_log.append(a_loss)
-
         if step % eval_every == 0:
             eval_ret = evaluate()
-            avg_c = np.mean(c_loss_log[-1000:]) if c_loss_log else float("nan")
-            avg_a = np.mean(a_loss_log[-1000:]) if a_loss_log else float("nan")
-            print(f"{step:>8}  {'':>10}  {eval_ret:>12.2f}  {avg_c:>12.4f}  {avg_a:>12.4f}")
+            logger.write(step=step, event="eval", eval_return=round(eval_ret, 4))
+            avg_c = np.mean([l[0] for l in ep_losses]) if ep_losses else float("nan")
+            avg_a = np.mean([l[1] for l in ep_losses]) if ep_losses else float("nan")
+            print(f"{step:>8}  {eval_ret:>12.2f}  {avg_c:>12.4f}  {avg_a:>12.4f}")
 
+    logger.close()
     print("\nTraining complete.")
 
 
